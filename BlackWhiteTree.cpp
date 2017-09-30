@@ -7,83 +7,140 @@
 #include <iostream>
 #include <vector>
 #include <stdio.h>
-#include <algorithm>
 
-const int N = 1e5 + 10;
+const int N = 1.2 * 1e5 + 10;
 
 using namespace std;
 
-int n, ans, startV, ansCol;
-int col[N], blackMax[N], whiteMax[N], P[N];
-vector <int> g[N];
+struct edge {
+    int first;
+    int second;
+    int col;
+};
 
-void solve(int v, int p = 0) {
-    P[v] = p;
-    for (int i = 0; i < g[v].size(); i++) {
-        int to = g[v][i];
-        if (to != p) {
-            solve(to, v);
-            blackMax[v] += max(blackMax[to], 0);
-            whiteMax[v] += max(whiteMax[to], 0);
-        }
-    }
+int n, q;
+edge edges[N];
 
-    if (col[v]) {
-        whiteMax[v]++;
-        blackMax[v]--;
-    } else {
-        whiteMax[v]--;
-        blackMax[v]++;
+long long sumForCol[N * 10], componentSum[N], cC[N];
+
+vector <edge> g[N];
+
+long long getSum(int v) {
+    long long ans = 0;
+    while (v > 0) {
+        ans += sumForCol[v];
+        v -= (v & -v);
     }
-    if (whiteMax[v] > ans) {
-        ans = whiteMax[v];
-        startV = v;
-        ansCol = 1;
-    }
-    if (blackMax[v] > ans) {
-        ans = blackMax[v];
-        startV = v;
-        ansCol = 0;
+    return ans;
+}
+
+void updateSum(int v, long long val) {
+    while (v < N * 10) {
+        sumForCol[v] += val;
+        v += (v & -v);
     }
 }
 
-vector <int> path;
-
-void getPath(int v) {
-    path.push_back(v);
+void dfs(int v, int p, vector <int> &pat, int Col) {
     for (int i = 0; i < g[v].size(); i++) {
-        int to = g[v][i];
-        if (to != P[v]) {
-            if (ansCol == 0 && blackMax[to] > 0)
-                getPath(to);
-            if (ansCol == 1 && whiteMax[to] > 0)
-                getPath(to);
-        }   
+        int to = g[v][i].first;
+        int curCol = edges[g[v][i].second].col;
+        if (to != p && Col == curCol) {
+            pat.push_back(g[v][i].second);
+            dfs(to, v, pat, Col);
+        }
     }
+}
+
+vector <int> fi, se;
+
+void update(int edgeInd, int curCol) {
+    int u = edges[edgeInd].first;
+    int v = edges[edgeInd].second;
+    int prevCol = edges[edgeInd].col;
+
+    if (prevCol == curCol) return;
+
+    fi.clear(); se.clear();
+
+    dfs(u, v, fi, prevCol);
+    dfs(v, u, se, prevCol);
+    updateSum(prevCol, -componentSum[edgeInd]);
+    updateSum(prevCol, (long long) fi.size() * (fi.size() + 1) / 2);
+    updateSum(prevCol, (long long) se.size() * (se.size() + 1) / 2);
+
+    for (int i = 0; i < fi.size(); i++) {
+        componentSum[fi[i]] = (long long) fi.size() * (fi.size() + 1) / 2;
+    }
+    for (int i = 0; i < se.size(); i++) {
+        componentSum[se[i]] = (long long) se.size() * (se.size() + 1) / 2;
+    }
+
+    fi.clear(); se.clear();
+    dfs(u, v, fi, curCol);
+    dfs(v, u, se, curCol);
+    if (fi.size()) {
+        updateSum(curCol, -componentSum[fi[0]]);
+    }
+    if (se.size()) {
+        updateSum(curCol, -componentSum[se[0]]);
+    }
+    int newCcount = fi.size() + se.size() + 2;
+    updateSum(curCol, (long long) newCcount * (newCcount - 1) / 2);
+
+    for (int i = 0; i < fi.size(); i++) {
+        componentSum[fi[i]] = (long long) newCcount * (newCcount - 1) / 2;
+    }
+    for (int i = 0; i < se.size(); i++) {
+        componentSum[se[i]] = (long long) newCcount * (newCcount - 1) / 2;
+    }
+    componentSum[edgeInd] = (long long) newCcount * (newCcount - 1) / 2;
+
+    edges[edgeInd].col = curCol;
+
 }
 
 int main() {
+    //freopen("input.txt", "r", stdin);
+
     scanf("%d", &n);
-    for (int i = 1; i <= n; i++) {
-        scanf("%d", &col[i]);
-    }
 
     for (int i = 1; i < n; i++) {
-        int u, v;
-        scanf("%d %d", &u, &v);
-        g[u].push_back(v);
-        g[v].push_back(u);
+        componentSum[i] = (long long) n * (n - 1) / 2;
     }
+    updateSum(1, (long long) n * (n - 1) / 2);
 
-    solve(1);
-    getPath(startV);
-    sort(path.begin(), path.end());
+    for (int i = 1; i < n; i++) {
+        scanf ("%d %d %d", &edges[i].first, &edges[i].second, &edges[i].col);
+        cC[i] = edges[i].col;
+        edges[i].col = 1;
+        edge curEdge = edges[i];
+        curEdge.second = i;
+        g[edges[i].second].push_back(curEdge);
+        curEdge.first = edges[i].second;
+        g[edges[i].first].push_back(curEdge);
+    }
+    for (int i = 1; i < n; i++) {
+        update(i, cC[i]);
+    }
+    scanf ("%d", &q);
+    while (q--) {
+        int type;
+        scanf ("%d", &type);
 
-    printf("%d\n", ans);
-    printf("%d\n", path.size());
-
-    for (int i = 0; i < path.size(); i++) {
-        printf("%d ", path[i]);
+        if (type == 1) {
+            int curEdge, curCol;
+            scanf ("%d %d", &curEdge, &curCol);
+            update(curEdge, curCol);
+        } else if (type == 2) {
+            int l, r;
+            scanf ("%d %d", &l, &r);
+            printf ("%lld\n", getSum(r) - getSum(l - 1));
+        } else {
+            int curEdge;
+            scanf ("%d", &curEdge);
+            printf ("%lld\n", componentSum[curEdge]);
+        }
     }
 
 }

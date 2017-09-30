@@ -8,7 +8,7 @@
 #include <vector>
 #include <stdio.h>
 
-const int N = 1e5 + 10;
+const int N = 1.2 * 1e5 + 10;
 
 using namespace std;
 
@@ -35,7 +35,7 @@ long long getSum(int v) {
 }
 
 void updateSum(int v, long long val) {
-    while (v < N) {
+    while (v < N * 10) {
         sumForCol[v] += val;
         v += (v & -v);
     }
@@ -65,9 +65,9 @@ void update(int edgeInd, int curCol) {
 
     dfs(u, v, fi, prevCol);
     dfs(v, u, se, prevCol);
-    updateSum(edgeInd, -componentSum[edgeInd]);
-    updateSum(edgeInd, (long long) fi.size() * (fi.size() + 1) / 2);
-    updateSum(edgeInd, (long long) se.size() * (se.size() + 1) / 2);
+    updateSum(prevCol, -componentSum[edgeInd]);
+    updateSum(prevCol, (long long) fi.size() * (fi.size() + 1) / 2);
+    updateSum(prevCol, (long long) se.size() * (se.size() + 1) / 2);
 
     for (int i = 0; i < fi.size(); i++) {
         componentSum[fi[i]] = (long long) fi.size() * (fi.size() + 1) / 2;
@@ -80,13 +80,13 @@ void update(int edgeInd, int curCol) {
     dfs(u, v, fi, curCol);
     dfs(v, u, se, curCol);
     if (fi.size()) {
-        updateSum(edgeInd, -componentSum[fi[0]]);
+        updateSum(curCol, -componentSum[fi[0]]);
     }
     if (se.size()) {
-        updateSum(edgeInd, -componentSum[se[0]]);
+        updateSum(curCol, -componentSum[se[0]]);
     }
     int newCcount = fi.size() + se.size() + 2;
-    updateSum(edgeInd, (long long) newCcount * (newCcount - 1) / 2);
+    updateSum(curCol, (long long) newCcount * (newCcount - 1) / 2);
 
     for (int i = 0; i < fi.size(); i++) {
         componentSum[fi[i]] = (long long) newCcount * (newCcount - 1) / 2;
@@ -98,32 +98,30 @@ void update(int edgeInd, int curCol) {
 
     edges[edgeInd].col = curCol;
 
-
 }
 
 int main() {
-    freopen("input.txt", "r", stdin);
+    //freopen("input.txt", "r", stdin);
+
     scanf("%d", &n);
 
     for (int i = 1; i < n; i++) {
-        componentSum[i] = (long long) n * (n - 1) / 2; 
+        componentSum[i] = (long long) n * (n - 1) / 2;
     }
-    updateSum(1, n * (n - 1) / 2);
+    updateSum(1, (long long) n * (n - 1) / 2);
 
     for (int i = 1; i < n; i++) {
         scanf ("%d %d %d", &edges[i].first, &edges[i].second, &edges[i].col);
         cC[i] = edges[i].col;
         edges[i].col = 1;
-        edge curEdge = edges[i]; 
+        edge curEdge = edges[i];
         curEdge.second = i;
         g[edges[i].second].push_back(curEdge);
         curEdge.first = edges[i].second;
         g[edges[i].first].push_back(curEdge);
     }
-    cout << getSum(7) << "   dasddd\n";
     for (int i = 1; i < n; i++) {
         update(i, cC[i]);
-        cout << getSum(7) << "   dasddd\n";
     }
     scanf ("%d", &q);
     while (q--) {
@@ -144,5 +142,5 @@ int main() {
             printf ("%lld\n", componentSum[curEdge]);
         }
     }
-   
+
 }
