@@ -7,23 +7,21 @@
 #include <iostream>
 #include <vector>
 #include <stdio.h>
+#include <map>
 
 const int N = 1.2 * 1e5 + 10;
 
 using namespace std;
 
-struct edge {
-    int first;
-    int second;
-    int col;
-};
-
 int n, q;
-edge edges[N];
+pair<int, int> edges[N], prec[N];
+
+int colOfEdge[N];
 
 long long sumForCol[N * 10], componentSum[N], cC[N];
 
-vector <edge> g[N];
+vector < pair<int, int> > g[N];
+map <int, int> subTreeCount[N];
 
 long long getSum(int v) {
     long long ans = 0;
@@ -44,7 +42,7 @@ void updateSum(int v, long long val) {
 void dfs(int v, int p, vector <int> &pat, int Col) {
     for (int i = 0; i < g[v].size(); i++) {
         int to = g[v][i].first;
-        int curCol = edges[g[v][i].second].col;
+        int curCol = colOfEdge[g[v][i].second];
         if (to != p && Col == curCol) {
             pat.push_back(g[v][i].second);
             dfs(to, v, pat, Col);
@@ -52,56 +50,73 @@ void dfs(int v, int p, vector <int> &pat, int Col) {
     }
 }
 
-vector <int> fi, se;
+void updUp(int v, int col, int val) {
+    while (colOfEdge[prec[v].second] == col) {
+        subTreeCount[prec[v].first][col] += val;
+        v = prec[v].first;
+    }
+}
 
-void update(int edgeInd, int curCol) {
+int getChildCount(int curEdge, int col) {
+    int u = edges[curEdge].first;
+    int v = edges[curEdge].second;
+    if (prec[v].first == u) swap(u, v);
+    while (colOfEdge[prec[u].second] == col) {
+        u = v;
+        v = prec[v].first;
+    }
+    return subTreeCount[u][col];
+}
+
+void update(int edgeInd, int newCol) {
     int u = edges[edgeInd].first;
     int v = edges[edgeInd].second;
-    int prevCol = edges[edgeInd].col;
+    if (prec[v].first == u) swap(u, v);
 
-    if (prevCol == curCol) return;
+    int prevCol = colOfEdge[edgeInd];
 
-    fi.clear(); se.clear();
+    if (prevCol == newCol) return;
 
-    dfs(u, v, fi, prevCol);
-    dfs(v, u, se, prevCol);
-    updateSum(prevCol, -componentSum[edgeInd]);
-    updateSum(prevCol, (long long) fi.size() * (fi.size() + 1) / 2);
-    updateSum(prevCol, (long long) se.size() * (se.size() + 1) / 2);
+    long long oldCnt = getChildCount(edgeInd, prevCol) + 1;
+    long long leftCnt = subTreeCount[u][prevCol] + 1;
+    long long rightCnt = oldCnt - leftCnt;
 
-    for (int i = 0; i < fi.size(); i++) {
-        componentSum[fi[i]] = (long long) fi.size() * (fi.size() + 1) / 2;
-    }
-    for (int i = 0; i < se.size(); i++) {
-        componentSum[se[i]] = (long long) se.size() * (se.size() + 1) / 2;
-    }
+    updateSum(prevCol, -(oldCnt * (oldCnt - 1) / 2));
+    updateSum(prevCol, leftCnt * (leftCnt - 1) / 2);
+    updateSum(prevCol, rightCnt * (rightCnt - 1) / 2);
 
-    fi.clear(); se.clear();
-    dfs(u, v, fi, curCol);
-    dfs(v, u, se, curCol);
-    if (fi.size()) {
-        updateSum(curCol, -componentSum[fi[0]]);
-    }
-    if (se.size()) {
-        updateSum(curCol, -componentSum[se[0]]);
-    }
-    int newCcount = fi.size() + se.size() + 2;
-    updateSum(curCol, (long long) newCcount * (newCcount - 1) / 2);
+    updUp(u, prevCol, -leftCnt);
 
-    for (int i = 0; i < fi.size(); i++) {
-        componentSum[fi[i]] = (long long) newCcount * (newCcount - 1) / 2;
-    }
-    for (int i = 0; i < se.size(); i++) {
-        componentSum[se[i]] = (long long) newCcount * (newCcount - 1) / 2;
-    }
-    componentSum[edgeInd] = (long long) newCcount * (newCcount - 1) / 2;
+    colOfEdge[edgeInd] = newCol;
 
-    edges[edgeInd].col = curCol;
+    long long newRightCnt = getChildCount(edgeInd, newCol) + 1;
+    long long newLeftCnt = subTreeCount[u][newCol] + 1;
+
+    updateSum(newCol, -(newRightCnt * (newRightCnt - 1) / 2));
+    updateSum(newCol, -(newLeftCnt * (newLeftCnt - 1) / 2));
+    long long newCnt = newLeftCnt + newRightCnt;
+    updateSum(newCol, (newCnt * (newCnt - 1) / 2));
+
+    updUp(u, newCol, newLeftCnt);
 
 }
 
+void precalc(int v, int p) {
+    for (int i = 0; i < g[v].size(); i++) {
+        int to = g[v][i].first;
+        if (to != p) {
+            prec[to].first = v;
+            prec[to].second = g[v][i].second;
+            precalc(to, v);
+            subTreeCount[v][colOfEdge[g[v][i].second]] +=
+                subTreeCount[to][colOfEdge[g[v][i].second]] + 1;
+        }
+    }
+}
+
+
 int main() {
-    //freopen("input.txt", "r", stdin);
+    freopen("input.txt", "r", stdin);
 
     scanf("%d", &n);
 
@@ -111,15 +126,18 @@ int main() {
     updateSum(1, (long long) n * (n - 1) / 2);
 
     for (int i = 1; i < n; i++) {
-        scanf ("%d %d %d", &edges[i].first, &edges[i].second, &edges[i].col);
-        cC[i] = edges[i].col;
-        edges[i].col = 1;
-        edge curEdge = edges[i];
+        scanf ("%d %d %d", &edges[i].first, &edges[i].second, &colOfEdge[i]);
+        cC[i] = colOfEdge[i];
+        colOfEdge[i] = 1;
+        pair<int, int> curEdge = edges[i];
         curEdge.second = i;
         g[edges[i].second].push_back(curEdge);
         curEdge.first = edges[i].second;
         g[edges[i].first].push_back(curEdge);
     }
+
+    precalc(1, 0);
+
     for (int i = 1; i < n; i++) {
         update(i, cC[i]);
     }
@@ -139,8 +157,8 @@ int main() {
         } else {
             int curEdge;
             scanf ("%d", &curEdge);
-            printf ("%lld\n", componentSum[curEdge]);
+            long long cnt = getChildCount(curEdge, colOfEdge[curEdge]);
+            printf ("%lld\n", cnt * (cnt + 1) / 2);
         }
     }
-
 }
